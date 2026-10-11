@@ -1,0 +1,15 @@
+.DS_Store
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.swiftpm/
+.build/
+*.dmg
+
+# Local Claude Code state
+.claude/worktrees/
+.claude/launch.json
+
+# Private docs
+doc/

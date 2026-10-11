@@ -1,0 +1,160 @@
+name: Release
+
+# Push a tag like v1.2.0 to build, sign, notarize and publish a release.
+# Each release carries the full Sparkle appcast. Apps check apps.ocf.sh/apps/bouncer/appcast.xml,
+# which redirects to releases/latest/download/appcast.xml.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+# Each release builds on the previous release's appcast, so never run two at once.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  TEAM_ID: 8WW7XEGR8W
+  APP_PAGE: https://apps.ocf.sh/apps/bouncer/
+
+jobs:
+  release:
+    runs-on: macos-latest
+    # Signing and notarization secrets live in this environment, which only v* tags can use.
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: latest-stable
+
+      - name: Set version from tag
+        run: |
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          # Sparkle decides what's newer by build number, so it must only ever go up.
+          # run_number resets if this workflow file is renamed.
+          echo "BUILD=${{ github.run_number }}" >> "$GITHUB_ENV"
+
+      - name: Check release notes
+        run: |
+          # Shown in Sparkle's update window and on the GitHub release, so write them for people using the app.
+          NOTES="release-notes/$VERSION.md"
+          if [ ! -s "$NOTES" ]; then
+            echo "::error::Missing $NOTES. Write the release notes, commit them, and tag again."
+            exit 1
+          fi
+          echo "NOTES=$NOTES" >> "$GITHUB_ENV"
+
+      - name: Import Developer ID certificate
+        env:
+          CERT_P12: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" -f pkcs12 -k "$KEYCHAIN" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -project Bouncer.xcodeproj \
+            -scheme Bouncer \
+            -configuration Release \
+            -archivePath build/Bouncer.xcarchive \
+            -derivedDataPath build/DerivedData \
+            MARKETING_VERSION="$VERSION" \
+            CURRENT_PROJECT_VERSION="$BUILD" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            DEVELOPMENT_TEAM="$TEAM_ID"
+
+      - name: Export app
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/Bouncer.xcarchive \
+            -exportPath build/export \
+            -exportOptionsPlist .github/ExportOptions.plist
+
+      - name: Build disk image
+        run: |
+          mkdir build/dmg
+          cp -R build/export/Bouncer.app build/dmg/
+          ln -s /Applications build/dmg/Applications
+          hdiutil create -volname Bouncer -srcfolder build/dmg -format UDZO build/Bouncer.dmg
+          codesign --sign "Developer ID Application" --timestamp build/Bouncer.dmg
+
+      - name: Notarize
+        env:
+          API_KEY_P8: ${{ secrets.APPSTORE_API_KEY_P8 }}
+          API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+        run: |
+          KEY="$RUNNER_TEMP/AuthKey.p8"
+          echo "$API_KEY_P8" | base64 --decode > "$KEY"
+          xcrun notarytool submit build/Bouncer.dmg \
+            --key "$KEY" --key-id "$API_KEY_ID" --issuer "$API_ISSUER_ID" \
+            --wait --output-format json > build/notary.json
+          cat build/notary.json
+          STATUS=$(plutil -extract status raw -o - build/notary.json)
+          if [ "$STATUS" != "Accepted" ]; then
+            ID=$(plutil -extract id raw -o - build/notary.json)
+            xcrun notarytool log "$ID" --key "$KEY" --key-id "$API_KEY_ID" --issuer "$API_ISSUER_ID"
+            exit 1
+          fi
+          xcrun stapler staple build/Bouncer.dmg
+          rm "$KEY"
+
+      - name: Build appcast
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          # Start from the latest release's appcast so every earlier version stays listed.
+          mkdir build/updates
+          cp build/Bouncer.dmg build/updates/
+          # generate_appcast picks up notes named after the disk image.
+          cp "$NOTES" build/updates/Bouncer.md
+          if [ -n "$(gh release list --limit 1 --json tagName --jq '.[].tagName')" ]; then
+            curl --fail --silent --show-error --location \
+              "https://github.com/${{ github.repository }}/releases/latest/download/appcast.xml" \
+              -o build/updates/appcast.xml
+          fi
+
+          echo "$SPARKLE_PRIVATE_KEY" | build/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_appcast \
+            --ed-key-file - \
+            --embed-release-notes \
+            --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/$GITHUB_REF_NAME/" \
+            --link "$APP_PAGE" \
+            -o build/updates/appcast.xml \
+            build/updates
+
+          # A key that doesn't match SUPublicEDKey is only a warning, and the update would ship unsigned.
+          # Sparkle would then refuse to install it, so stop here instead.
+          if ! grep -F "releases/download/$GITHUB_REF_NAME/Bouncer.dmg" build/updates/appcast.xml | grep -q "sparkle:edSignature="; then
+            echo "::error::The new appcast item has no EdDSA signature. Check SPARKLE_PRIVATE_KEY matches SUPublicEDKey."
+            exit 1
+          fi
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Upload both files in one step so the latest release is never missing its appcast.
+          gh release create "$GITHUB_REF_NAME" build/Bouncer.dmg build/updates/appcast.xml \
+            --title "Bouncer $VERSION" \
+            --notes-file "$NOTES" \
+            --latest
+
+      - name: Clean up keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
