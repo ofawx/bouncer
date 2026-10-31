@@ -93,7 +93,7 @@ final class VolumeStore: ObservableObject {
                 }
             }
         } catch {
-            ejectStates[drive.id] = .failed("Couldn't eject \(drive.name).")
+            ejectStates[drive.id] = .failed(String(localized: "Couldn't eject \(drive.name)."))
         }
     }
 
@@ -124,8 +124,9 @@ final class VolumeStore: ObservableObject {
     private func failureMessage(for drive: ExternalDrive) -> String {
         let names = holderLabels(of: drive)
         guard !names.isEmpty else {
-            return "Couldn't eject. Something is still using it."
+            return String(localized: "Couldn't eject. Something is still using it.")
         }
-        return "Couldn't eject. It's being used by \(ListFormatter.localizedString(byJoining: names))."
+        let list = ListFormatter.localizedString(byJoining: names)
+        return String(localized: "Couldn't eject. It's being used by \(list).")
     }
 }

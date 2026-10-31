@@ -79,14 +79,15 @@ enum DriveFinder {
     }
 
     private static func name(ofDisk disk: String) async -> String {
-        guard let info = try? await info(disk) else { return "External Drive" }
+        let fallback = String(localized: "External Drive")
+        guard let info = try? await info(disk) else { return fallback }
 
         if info["BusProtocol"] as? String == "Disk Image" {
-            return (try? await diskImageName(of: disk)) ?? "Disk Image"
+            return (try? await diskImageName(of: disk)) ?? String(localized: "Disk Image")
         }
 
         let mediaName = (info["MediaName"] as? String ?? "").trimmingCharacters(in: .whitespaces)
-        return mediaName.isEmpty ? "External Drive" : mediaName
+        return mediaName.isEmpty ? fallback : mediaName
     }
 
     /// The file name of the disk image mounted at this disk, such as "Installer.dmg".

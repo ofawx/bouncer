@@ -97,7 +97,7 @@ private struct DriveSection: View {
                 Text("Ejecting…")
                     .foregroundStyle(.secondary)
             case .idle:
-                Text(drive.volumes.count == 1 ? "Ejecting removes 1 volume" : "Ejecting removes all \(drive.volumes.count) volumes")
+                Text("Ejecting removes \(drive.volumes.count) volumes")
                     .foregroundStyle(.secondary)
             }
         }

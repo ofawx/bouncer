@@ -23,21 +23,25 @@ struct Holder: Identifiable, Hashable {
     }
 
     /// The name of the outermost app bundle the executable lives in, so helpers group under their app.
+    /// System apps have translated names, like 写真 for Photos.app in Japanese.
     var enclosingAppName: String? {
-        guard let path = executablePath,
-              let app = path.split(separator: "/").first(where: { $0.hasSuffix(".app") })
+        guard let components = executablePath?.split(separator: "/"),
+              let index = components.firstIndex(where: { $0.hasSuffix(".app") })
         else { return nil }
-        return String(app.dropLast(".app".count))
+
+        let bundle = Bundle(path: "/" + components[...index].joined(separator: "/"))
+        return bundle?.localizedInfoDictionary?["CFBundleDisplayName"] as? String
+            ?? String(components[index].dropLast(".app".count))
     }
 
-    /// A plain-English name for what this process is. Shown mid-sentence ("In use by …"),
+    /// A plain-language name for what this process is. Shown mid-sentence ("In use by …"),
     /// so anything that isn't a proper noun stays lowercase.
     var label: String {
         if let known = Culprits.label(forExecutable: executableName) {
             return known
         }
         if isWorkingDirectory, Culprits.shells.contains(executableName) {
-            return "a terminal window"
+            return String(localized: "a terminal window", comment: "Follows \"In use by\", alone or in a list of app names.")
         }
         if let app = enclosingAppName {
             return app
@@ -66,26 +70,35 @@ struct Holder: Identifiable, Hashable {
 enum Culprits {
     static let shells: Set<String> = ["zsh", "bash", "fish", "sh", "tcsh", "ksh", "dash"]
 
-    private static let labels: [String: String] = [
-        "mds": "Spotlight",
-        "mds_stores": "Spotlight",
-        "mdworker": "Spotlight",
-        "mdworker_shared": "Spotlight",
-        "corespotlightd": "Spotlight",
-        "managedcorespotlightd": "Spotlight",
-        "photolibraryd": "Photos",
-        "photoanalysisd": "Photos",
-        "mediaanalysisd": "Photos",
-        "cloudphotod": "Photos",
-        "com.apple.CloudPhotosConfiguration": "Photos",
-        "backupd": "Time Machine",
-        "backupd-helper": "Time Machine",
-        "quicklookd": "Quick Look",
-        "QuickLookUIService": "Quick Look",
-        "com.apple.quicklook.ThumbnailsAgent": "Quick Look",
-        "bird": "iCloud Drive",
-        "fileproviderd": "iCloud Drive",
-    ]
+    /// Names match what macOS calls these features in each language.
+    private static let labels: [String: String] = {
+        let spotlight = String(localized: "Spotlight")
+        let photos = String(localized: "Photos")
+        let timeMachine = String(localized: "Time Machine")
+        let quickLook = String(localized: "Quick Look")
+        let iCloudDrive = String(localized: "iCloud Drive")
+
+        return [
+            "mds": spotlight,
+            "mds_stores": spotlight,
+            "mdworker": spotlight,
+            "mdworker_shared": spotlight,
+            "corespotlightd": spotlight,
+            "managedcorespotlightd": spotlight,
+            "photolibraryd": photos,
+            "photoanalysisd": photos,
+            "mediaanalysisd": photos,
+            "cloudphotod": photos,
+            "com.apple.CloudPhotosConfiguration": photos,
+            "backupd": timeMachine,
+            "backupd-helper": timeMachine,
+            "quicklookd": quickLook,
+            "QuickLookUIService": quickLook,
+            "com.apple.quicklook.ThumbnailsAgent": quickLook,
+            "bird": iCloudDrive,
+            "fileproviderd": iCloudDrive,
+        ]
+    }()
 
     static func label(forExecutable name: String) -> String? {
         labels[name]
