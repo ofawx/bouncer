@@ -10,7 +10,7 @@ Bouncer needs macOS 13 Ventura or later.
 
 ## Download
 
-Bouncer isn't out yet. When it is, you'll be able to get it from [apps.ocf.sh](https://apps.ocf.sh/apps/bouncer/) or from [GitHub Releases](../../releases/latest).
+[Download Bouncer](https://github.com/ofawx/bouncer/releases/latest/download/Bouncer.dmg), open it, and drag Bouncer to your Applications folder. You can also find it on [apps.ocf.sh](https://apps.ocf.sh/apps/bouncer/) and in [GitHub Releases](../../releases/latest).
 
 ## License
 
