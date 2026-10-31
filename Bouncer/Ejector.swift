@@ -21,6 +21,12 @@ enum Ejector {
         return .refused(dissenter: dissenter(in: message), message: message)
     }
 
+    /// Mounts the drive's volumes again. `diskutil` unmounts all it can before refusing,
+    /// so a refused eject can leave some of them unmounted.
+    static func remount(_ drive: ExternalDrive) async throws {
+        _ = try await CommandRunner.run("/usr/sbin/diskutil", ["mountDisk", drive.id])
+    }
+
     /// Pulls the blocking process out of a failed `diskutil` message, such as
     /// "Unmount was dissented by PID 412 (/System/Library/.../mds)". This sees root processes that `lsof` can't.
     static func dissenter(in message: String) -> Dissenter? {

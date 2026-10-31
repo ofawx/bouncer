@@ -86,6 +86,7 @@ final class VolumeStore: ObservableObject {
 
                     let stoppable = holders(of: drive).filter(\.canBeStopped)
                     guard attempt < Self.ejectAttempts, !stoppable.isEmpty else {
+                        try? await Ejector.remount(drive)
                         ejectStates[drive.id] = .failed(failureMessage(for: drive))
                         return
                     }
