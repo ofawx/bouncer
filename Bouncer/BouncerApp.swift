@@ -14,7 +14,7 @@ struct BouncerApp: App {
     )
 
     var body: some Scene {
-        MenuBarExtra("Bouncer", systemImage: "externaldrive") {
+        MenuBarExtra("Bouncer", image: "MenuBarIcon") {
             MenuContentView(store: store, loginItem: loginItem, updater: updaterController.updater)
         }
         .menuBarExtraStyle(.window)
