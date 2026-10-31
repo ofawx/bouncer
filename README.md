@@ -2,16 +2,26 @@
 
 Eject your drives, even when your Mac says you can't.
 
-You've probably seen this one: "The disk couldn't be ejected because one or more programs may be using it." Your Mac won't tell you which programs. Bouncer will, and it can clear them out so the drive ejects.
+**[Download Bouncer](https://github.com/ofawx/bouncer/releases/latest/download/Bouncer.dmg)**. It's free and open source, and needs macOS 13 Ventura or later.
 
-It sits in your menu bar. Click it, pick the drive, and Bouncer shows you what's using it. Usually it's something in the background, like Spotlight or Photos. Bouncer asks those apps to let go, then ejects the drive. If something won't let go, Bouncer checks with you before doing anything drastic.
+<img src="design/screenshot.png" width="328" alt="Bouncer's menu bar panel, showing a drive with one volume in use by Preview and an eject button">
 
-Bouncer needs macOS 13 Ventura or later.
+You've probably seen this one: "The disk couldn't be ejected because one or more programs may be using it." Your Mac won't tell you which programs. Bouncer will.
 
-## Download
+It sits in your menu bar and shows what's using each drive. Click eject, and if your Mac refuses, Bouncer closes whatever's in the way and tries again. If the drive still won't eject, Bouncer mounts it again and tells you what's holding on to it.
 
-[Download Bouncer](https://github.com/ofawx/bouncer/releases/latest/download/Bouncer.dmg), open it, and drag Bouncer to your Applications folder. You can also find it on [apps.ocf.sh](https://apps.ocf.sh/apps/bouncer/) and in [GitHub Releases](../../releases/latest).
+Bouncer doesn't check with you before closing things, so save your work first. Apps can still ask you to save, but background tasks are simply told to stop. Bouncer leaves anything in a Terminal window alone, can't close parts of macOS itself, and never forces a drive out.
+
+## Install
+
+Open the download and drag Bouncer to your Applications folder. It checks for updates by itself and asks before installing them.
+
+Bouncer has no accounts, ads or analytics. Checking for updates is the only thing it does online.
+
+## Help
+
+[Open an issue](../../issues) or [get in touch](https://apps.ocf.sh/site/contact/). There's more on [apps.ocf.sh](https://apps.ocf.sh/apps/bouncer/), and in [CONTRIBUTING.md](CONTRIBUTING.md) if you'd like to work on the code.
 
 ## License
 
-Bouncer is free and open source under the [MIT License](LICENSE).
+[MIT](LICENSE)
