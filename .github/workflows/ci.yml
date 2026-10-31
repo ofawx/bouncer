@@ -30,3 +30,41 @@ jobs:
             CODE_SIGN_IDENTITY=- \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM=
+
+  # A build of main to try out, so nobody has to build it in Xcode. It isn't a release:
+  # signing secrets only reach v* tags, so this one runs only on the Mac that downloads it.
+  package:
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: latest-stable
+
+      - name: Build
+        run: |
+          # Hardened runtime refuses to load Sparkle.framework without a team ID, so the app wouldn't launch.
+          xcodebuild build \
+            -project Bouncer.xcodeproj \
+            -scheme Bouncer \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM= \
+            ENABLE_HARDENED_RUNTIME=NO
+
+      - name: Zip app
+        # ditto keeps the symlinks inside Sparkle.framework, which the artifact's own zip would lose.
+        run: ditto -c -k --keepParent build/DerivedData/Build/Products/Release/Bouncer.app build/Bouncer.zip
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Bouncer
+          path: build/Bouncer.zip
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
